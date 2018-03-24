@@ -1,2 +1,2 @@
 # tails-utilities
-Extensions to TAILS that support backup, restore and boot drive duplicator
+Extensions to TAILS that adds backup, restore and a USB drive duplicator.
