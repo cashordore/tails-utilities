@@ -16,7 +16,7 @@ make sure the ~amnesia/.local is part of your persistence configuration
 >`backup.bash` - runs the backup. Encrypted backup files saved to ~/Persistent/.
 >
 
-#Restore
+## Restore
 >`Restore-Persistent-Data.desktop` - desktop shortcut that invokes the restore.bash shell script.
 >
 >`restore.bash` - runs the restore. Decryptes and restores backup file; looks for file in ~/Persistent/.
