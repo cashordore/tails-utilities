@@ -1,0 +1,12 @@
+#!/usr/bin/env xdg-open
+[Desktop Entry]
+Encoding=UTF-8
+Name=Restore
+Comment=Launch DirSyncPro
+Exec=gnome-terminal -e "sudo /home/amnesia/.local/share/applications/restore.bash"
+Icon=/usr/share/icons/gnome/48x48/actions/document-revert.png
+Type=Application
+GenericName[en_US.UTF-8]=Restore Persistent Data
+Name[en_US]=Restore Persistent Data
+Comment[en_US.UTF-8]=
+Categories=Utility;
