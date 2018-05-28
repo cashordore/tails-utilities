@@ -1,12 +1,12 @@
 # Install and Setup
+1. confirm that the following line is in `/live/persistence/TailsData_unlocked/persistence.conf`
+    1. `/home/amnesia/.local	source=local`
+    1. You must reboot after modifying the `persistence.conf` file*
 1. make sure all `\*.bash` files are executable:
     1. `chmod 755 \*.bash`
 1. copy files to `~amnesia/.local/share/applications` as follows:
     1.  `cp *.desktop ~amnesia/.local/share/applications`
     1.  `cp *.bash ~amnesia/.local/share/applications`
-1. confirm that the following line is in `/live/persistence/TailsData_unlocked/persistence.conf`
-    1. `/home/amnesia/.local	source=local`
-    1. *note: you must reboot after modifying the `persistence.conf` file*
 
 # Included Utilities
 
