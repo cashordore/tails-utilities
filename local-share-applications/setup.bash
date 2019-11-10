@@ -2,16 +2,17 @@
 #
 # setup runs upon boot when amnesia signs in.
 #
+
 #
 # only root can run 
 #
-#if [ `whoami` != "root" ];then
-#    zenity --title="$P: Insufficient Permission" \
-#	--info --width=320 \
-#	--text="Only root can run this command; aborting." \
-#	--timeout=5 2>/dev/null
-#    exit 1
-#fi
+if [ `whoami` != "root" ];then
+    zenity --title="$P: Insufficient Permission" \
+	--info --width=320 \
+	--text="Only root can run this command; aborting." \
+	--timeout=5 2>/dev/null
+    exit 1
+fi
 
 P=`basename $0`
 CODEDIR=`dirname $0`
@@ -69,7 +70,59 @@ if [ ! -f  "${LASTV}" ];then
     #
     STEP=`cat ${STEPFILE} 2>/dev/null||echo 1`
     if [ "$STEP" -eq "1" ]; then
+	# 
+	# identify LUKS partitions
+	#
+	for d in `readlink -e /dev/disk/by-id/usb*|sort`; do
+	    # cryptsetup can identify LUKS partitions, magic!
+	    #
+	    cryptsetup isLuks $d 
+	    if [ $? -eq 0 ]; then
+
+		if [ "$L_DEV" = "" ];then
+		    L_DEV="TRUE $d"
+		else
+		    # If there are more than two USB drives, create a list
+		    L_DEV="$L_DEV FALSE $d"
+		fi
+
+	    fi
+	done
+	if [ "$L_DEV" = "" ];then
+	    echo "$P: Could not find the LUKS partition, aborting."
+	    exit 1
+	fi
+	#
+	# select the input device, set IUSB
+	#
+	LUSB=`zenity --title="Select Source Device" \
+		--list \
+		--radiolist \
+		--text="Select Encrypted Partition" \
+		--column="Select" \
+		--column="Device" \
+		$L_DEV 2>/dev/null`
+
+	if [ $? -ne 0 ];then
+	    zenity --title="Aborting..." \
+		--info \
+		--text="Change Password Aborted." --timeout=5 2>/dev/null
+	    exit 1;
+	fi
+
+	echo "Luks Drive is $LUSB"
+	exit 0
+
+
 	echo change password, please.
+	# get and test Old  PassFrase
+	# LOOP
+	# get OLDPF
+	OLDPF=x
+
+	# prompt for new PassFrase
+	# cryptsetup -v --test-passphrase --tries=1  open /dev/sdc2 
+	NEWPF=x
 
 	echo password changed.
         echo 2 > ${STEPFILE};
@@ -102,10 +155,11 @@ if [ ! -f  "${LASTV}" ];then
 	sleep 1
     fi
 
-    # echo ${CODE_V} >${LASTV}
+    echo ${CODE_V} >${LASTV}
     
 fi
-# LAST_V=`cat ${LASTV}`
+set -x
+LAST_V=`cat ${LASTV}`
 
 
 #
