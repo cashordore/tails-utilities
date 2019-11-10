@@ -113,7 +113,7 @@ elif [ "$MODE" = "RESTORE" ];then
 	else
 	    echo "Enter password and then wait for the $MODE to complete."
 	    cd ${SRC}
-	    gpg --cipher-algo AES -d "$D/$BAKFILE" | tar -xjvf - 
+	    gpg --cipher-algo AES -d "${D}/${BAKFILE}" | tar -xjvf - 
 	    zenity --info \
 		--text="Restore Complete." 2>/dev/null
 	fi
