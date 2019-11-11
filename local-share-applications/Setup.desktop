@@ -1,0 +1,11 @@
+#!/usr/bin/env xdg-open
+[Desktop Entry]
+Encoding=UTF-8
+Name=First-time Setup of Tails USB Drive
+Comment=First-time setup of customizations
+Exec=gnome-terminal -e "sudo /home/amnesia/.local/share/applications/setup.bash 2>/dev/null"
+Icon=media-removable
+Type=Application
+GenericName[en_US.UTF-8]=First-time Setup
+Comment[en_US.UTF-8]=
+Categories=Utility;
