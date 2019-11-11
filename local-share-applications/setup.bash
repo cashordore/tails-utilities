@@ -22,6 +22,8 @@ PLOCAL=${PDATA}/local
 PERSISTENT=${PDATA}/Persistent
 STEPFILE=${PERSISTENT}/.setupstep
 LASTV=${PERSISTENT}/.last_v
+CPFF=${PERSISTENT}/.cpf
+NPFF=${PERSISTENT}/.npf
 
 if [ ! -d ${PLOCAL} ];then
     zenity --title="$P: Unexpected error: missing local folder." \
@@ -47,16 +49,22 @@ if [ 0 -eq `grep -c "^V ${RUN_V}" ${PCONF}` ];then
     # This would likely happen after user does a Tails in-place upgrade.
     # or a "code restore" of older (aka wrong) version (yes, it's possible)
     # either way might want to check for a compatible version of the code...
-    #
-    # might use 'git fetch' or similar service for this...
-    # for now just bail.
+	# no need to keep this, just need it for install...
+	# at some point add a branch for based on $RUN_V
+	# for now, just the latest version... 
+	# cd /tmp
+	# git clone https://github.com/cashordore/tails-utilities
+	# cd /tmp/tails-utilities/local-share-applications
+	# [ -f ./upgrade.bash ] && ./upgrade.bash
+	# basically upgrade.bash should copy files from current folder into correct place
     #
     VZ=`echo \`grep "^V " $PCONF | cut -d' ' -f2\``
-    zenity --title="Incompatible version detected." \
-	--info --width=320 \
-	--text="$P: Tails $RUN_V is not compatible. Try $VZ. Aborting..." \
-	--timeout=5 2>/dev/null 
-    exit 1
+    zenity --question --title="Unsupported version detected." --width=480 \
+	--text="Tails is running $RUN_V however, supported versions are: $VZ. Would you like to continue anyway?"
+    if [ $? -ne 0 ]; then
+	zenity --info --title="aborting..." --text="aborting..." --timeout=5 --info 2>/dev/null
+	exit 1
+    fi
 fi
 
 # 
@@ -89,7 +97,7 @@ if [ ! -f  "${LASTV}" ];then
 	    fi
 	done
 	if [ "$L_DEV" = "" ];then
-	    echo "$P: Could not find the LUKS partition, aborting."
+	    zenity --info --text="$P: Could not find the LUKS partition, aborting." --title="aborting.." --timeout=30
 	    exit 1
 	fi
 	#
@@ -105,64 +113,180 @@ if [ ! -f  "${LASTV}" ];then
 
 	if [ $? -ne 0 ];then
 	    zenity --title="Aborting..." \
-		--info \
-		--text="Change Password Aborted." --timeout=5 2>/dev/null
-	    exit 1;
+		--info --text="Change Password Aborted." --timeout=5 2>/dev/null
+	    exit 1
 	fi
 
-	echo "Luks Drive is $LUSB"
-	exit 0
+	FDATA=""
+	while true; do
+	    # prompt for Old passphrase, and new passphrase twice.
+	    FDATA=`zenity --forms --title="Change Persistent Storage Passphrase!" \
+		--width=480 \
+		--add-password="Current Passphrase" \
+		--add-password="New Passphrase" \
+		--add-password="Repeat New Passphrase" `
+	    if [ $? -ne 0 ];then
+		echo "aborting..."
+		exit 1
+	    fi
 
+	    # check for a '|' character in the passwords
+	    PC=`echo "${FDATA}" | awk -F"\|" '{print NF-1}'`
+	    if [ "$PC" -ne 2 -a "$PC" -ne 0 ];then
+		zenity --question --width=480 \
+			--title="Invalid character" \
+			--text="The '|' character is not allowed, Click Yes to Try again." 
+		if [ $? -ne 0 ];then
+		    echo "aborting..."
+		    exit 1
+		fi
+		continue
+	    fi
 
-	echo change password, please.
-	# get and test Old  PassFrase
-	# LOOP
-	# get OLDPF
-	OLDPF=x
+	    if [ "$FDATA" = "" ];then
+		echo "empty form... (i think)"
+		continue
+	    fi
 
-	# prompt for new PassFrase
-	# cryptsetup -v --test-passphrase --tries=1  open /dev/sdc2 
-	NEWPF=x
+	    # divvy up the spoils 
+	    CPF=`echo  "$FDATA"|cut -d\| -f1`
+	    NPF1=`echo "$FDATA"|cut -d\| -f2`
+	    NPF2=`echo "$FDATA"|cut -d\| -f3`
 
-	echo password changed.
-        echo 2 > ${STEPFILE};
-	sleep 1
+	    # ensure new passphrases match...
+	    if [ "$NPF1" != "$NPF2" -o "$CPF" == "" -o "$NPF1" == "" -o "$NPF2" == "" ]; then
+		zenity --question --width=480 \
+			--title="Passphrase errors" \
+			--text="The new Passphrases did not match or a field was blank; do you want to try again?" 
+		if [ $? -ne 0 ];then
+		    echo "aborting..."
+		    exit 1
+		fi
+		# loop back and try again
+		continue
+	    fi
+
+	    printf "$CPF" > $CPFF
+	    cryptsetup --test-passphrase open --key-file=$CPFF $LUSB 
+	    if [ $? -ne 0 ];then
+		zenity --question --width=480 \
+			--title="Incorrect Current Passphrase" \
+			--text="The Current Passphrase was not correct, do you want to try again?"
+		if [ $? -ne 0 ];then
+		    rm -f $CPFF
+		    echo "aborting..."
+		    exit 1
+		fi
+		continue
+	    fi
+
+	    printf "$NPF1" > $NPFF
+	    zenity --question --width=480 \
+		--title="WARNING!! Confirm Disk Encryption Passphrase Change." \
+		--text="WARNING!! You are about to perminently change the passphrase for your encrypted Disk $LUSB to \"`cat ${NPFF}`\". The password cannot be recovered. Do not lose or forget it. \n\nPlease Confirm by clicking Yes."
+
+	    if [ $? -eq 0 ]; then
+		# echo cryptsetup luksAddKey --key-file=$CPFF $LUSB $NPFF 2>/tmp/${P}.err
+		cryptsetup luksChangeKey --key-file=$CPFF $LUSB $NPFF
+		if [ $? -ne 0 ];then
+		    rm -f $CPFF $NPFF
+		    zenity --question --width=480 \
+			--title="Passphrase change failed!" \
+			--text="Error: failed passphrase change on $LUSB, `cat /tmp/${P}.err`\nDo you want to try again?"
+		    if [ $? -ne 0 ];then
+			echo "aborting..."
+			exit 1
+		    fi
+		    continue
+		else
+		    zenity --info --title="Passphrase change Succeeded!" \
+			--text="Your Encryption Passphrase has been successfully changed."
+		fi
+	    else
+		zenity --info --text="Passphrase change Aborted! (what were you thinking!)" --title="aborting" --timeout=10
+		rm -f $CPFF $NPFF
+		exit 1
+	    fi
+	    # cleanup files..
+	    rm -f $CPFF $NPFF
+	    # ok we done. Phew!
+	    break;
+	done
+
 	STEP=2
+        echo $STEP > ${STEPFILE};
     fi
+
+
     if [ "$STEP" -eq "2" ]; then
-	echo "restore user-data, please."
-
-	echo "user-data restored."
-	echo 3 > ${STEPFILE}
-	sleep 1
+#
+# Not ready for prime-time
+# basic goal of STEP 2 is to repair persistent config, and restore files if necessary
+# and reboot to re-connect the persistent config to the restored data...
+# below doesn't really do that... yet.
+#
+#	# audit the persistent configuration... 
+#	MDIRS=""; SEP=""
+#	for d in `awk '{if($1=="T"||$1=="X") print $2;}' $PCONF`; do
+#	    if [ ! -d $d ]; then
+#		MDIRS="${MDIRS}${SEP}${d}"
+#		SEP=" "
+#	    fi
+#	done
+#	if [ "$MDIRS" != "" ];then
+#	    zenity --info --title="Restore Recommended." --width=480 \
+#		--text="The following elements are missing from your configuration: \n${MDIRS}\nIt is strongly recommend that you restore from backup and then reboot the computer." \
+#		--timeout=30
+#	fi
+#
+#	# an upgrade might be more approp here than a data-recovery; 
+#	zenity --question --width=480 \
+#		--title="Restore user-data?" \
+#		--text="Would you like to restore data from a previous backup?"
+#		--timeout=30
+#	if [ $? -ne 0 ];then
+#	    $CODEDIR/restore.bash
+#	    # after the restore, a reboot might be needed... 
+#	else
+#	    zenity --info --title="No restore." --text="No data was restored."
+#	fi
+#	if [ "$MDIRS" != "" ];then
+#	    zenity --question --title="Reboot now?" --text="Reboot is recommended, now; reboot?"
+#	    if [ $? -eq 0 ];then
+#		reboot &
+#		exit 0
+#	    fi
+#	    zenity --info --text="No Reboot" --title="Reboot skipped." --timeout=5
+#	fi
+#
+#	
 	STEP=3
-	echo "reboot now, or the fail-safe drive will not function properly."
-	exit 0
+	echo $STEP > ${STEPFILE}
     fi
+    # Once persistence is fixed it's time to make a duplicate drive!
     if [ "$STEP" -eq "3" ]; then
-	echo create fail-safe drive
-
-	echo "fail-safe drive created"
-	echo 4 > ${STEPFILE}
-	sleep 1
-	STEP=4
+	zenity --question --width=480 --title="Create Fail-safe" \
+		--text="It is STRONGLY recommend you create a fail-safe drive NOW, in case your primary drive gets lost or damaged!\nWould you like to create your fail-safe drive now?"
+	if [ $? -eq 0 ];then
+	    ${CODEDIR}/duplicate.bash
+	    STEP=4
+	    echo $STEP > ${STEPFILE}
+	else
+	   zenity --info --text="...don't put it off too long." --title="living dangerously..." --timeout=10
+	fi
     fi
 
-    if [ "$STEP" -eq "4" ]; then
-	echo setup complete for Tails $RUN_V
-	# echo ${RUN_V} >${LASTV}
+    #
+    # Ok, now we can log the run-time version and avoid the setup in the future...
+    #
+    if [ "$STEP" -eq "4" -o "$STEP" -eq "3" ]; then
+	zenity --info --text="Setup is complete." --title="Setup Complete." --timeout=30
 	rm ${STEPFILE}
-	sleep 1
     fi
-
-    echo ${CODE_V} >${LASTV}
-    
+    echo ${RUN_V} >${LASTV}
 fi
-set -x
-LAST_V=`cat ${LASTV}`
-
 
 #
-# 
+# add backup reminder
 #
 
