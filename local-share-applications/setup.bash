@@ -8,7 +8,7 @@
 #
 if [ `whoami` != "root" ];then
     zenity --title="$P: Insufficient Permission" \
-	--info --width=320 \
+	--info --width=480 \
 	--text="Only root can run this command; aborting." \
 	--timeout=5 2>/dev/null
     exit 1
@@ -18,24 +18,23 @@ P=`basename $0`
 CODEDIR=`dirname $0`
 PCONF="`echo ${CODEDIR}/${P}|sed 's/bash/conf/g'`"
 PDATA=/live/persistence/TailsData_unlocked
-PLOCAL=${PDATA}/local
 PERSISTENT=${PDATA}/Persistent
-STEPFILE=${PERSISTENT}/.setupstep
-LASTV=${PERSISTENT}/.last_v
-CPFF=${PERSISTENT}/.cpf
-NPFF=${PERSISTENT}/.npf
+PLOCAL=${PDATA}/local
+STEPFILE=${PLOCAL}/.setupstep
+LASTV=${PLOCAL}/.last_v
+CPFF=${PLOCAL}/.cpf
+NPFF=${PLOCAL}/.npf
 
 if [ ! -d ${PLOCAL} ];then
     zenity --title="$P: Unexpected error: missing local folder." \
-	--info --width=320 \
-	--text="$P: Unexpected error: ${PLOCAL} missing. Aborting..." \
-	--timeout=5 2>/dev/null
+	--text="$P: Unexpected error: ${PLOCAL} missing. You may need to reboot, Aborting..." \
+	--info --width=480 2>/dev/null
     exit 1
 fi
 
 if [ ! -f ${PCONF} ];then
     zenity --title="missing $PCONF." \
-	--info --width=320 \
+	--info --width=480 \
 	--text="$P: missing ${PCONF} file. Aborting..." \
 	--timeout=5 2>/dev/null 
     exit 1
@@ -60,9 +59,9 @@ if [ 0 -eq `grep -c "^V ${RUN_V}" ${PCONF}` ];then
     #
     VZ=`echo \`grep "^V " $PCONF | cut -d' ' -f2\``
     zenity --question --title="Unsupported version detected." --width=480 \
-	--text="Tails is running $RUN_V however, supported versions are: $VZ. Would you like to continue anyway?"
+	--text="Tails $RUN_V is currently running; however, the supported versions are: $VZ. Would you like to continue anyway?"
     if [ $? -ne 0 ]; then
-	zenity --info --title="aborting..." --text="aborting..." --timeout=5 --info 2>/dev/null
+	zenity --width=480 --info --title="aborting..." --text="aborting..." --timeout=5 --info 2>/dev/null
 	exit 1
     fi
 fi
@@ -78,6 +77,14 @@ if [ ! -f  "${LASTV}" ];then
     #
     STEP=`cat ${STEPFILE} 2>/dev/null||echo 1`
     if [ "$STEP" -eq "1" ]; then
+
+	# 
+	# Welcome message 
+	#
+	zenity --width=480 --info --title="First-time Setup" \
+		--text="Welcome to the First-time setup wizard.\n\nImportant note: You are about to set the passphrase for your encrypted storage. Once the passpharse is changed it cannot be recovered; so please be careful. Write it down and lock it in a safe.\n\nYou will also have the opportunity to create a fail-safe, duplicate copy of this USB drive in case this device is stolen, lost or damaged; and if stolen, I hope your passpharse was 20+ characters!\n\nGood luck and let's go!"
+
+	
 	# 
 	# identify LUKS partitions
 	#
@@ -199,11 +206,11 @@ if [ ! -f  "${LASTV}" ];then
 		    fi
 		    continue
 		else
-		    zenity --info --title="Passphrase change Succeeded!" \
+		    zenity --info --title="Passphrase change Succeeded!" --width=480 \
 			--text="Your Encryption Passphrase has been successfully changed."
 		fi
 	    else
-		zenity --info --text="Passphrase change Aborted! (what were you thinking!)" --title="aborting" --timeout=10
+		zenity --info --text="Passphrase change Aborted! (what were you thinking!)" --title="aborting" --timeout=10 --width=480
 		rm -f $CPFF $NPFF
 		exit 1
 	    fi
@@ -213,77 +220,71 @@ if [ ! -f  "${LASTV}" ];then
 	    break;
 	done
 
-	STEP=2
-        echo $STEP > ${STEPFILE};
+	STEP=2 echo $STEP > ${STEPFILE};
     fi
 
 
     if [ "$STEP" -eq "2" ]; then
-#
-# Not ready for prime-time
-# basic goal of STEP 2 is to repair persistent config, and restore files if necessary
-# and reboot to re-connect the persistent config to the restored data...
-# below doesn't really do that... yet.
-#
-#	# audit the persistent configuration... 
-#	MDIRS=""; SEP=""
-#	for d in `awk '{if($1=="T"||$1=="X") print $2;}' $PCONF`; do
-#	    if [ ! -d $d ]; then
-#		MDIRS="${MDIRS}${SEP}${d}"
-#		SEP=" "
+	# ask if user "wants" to setup "persistence" 
+	# remember timestamp of $PDATA/persistence.conf
+	# tails-persistence-setup
+	# if timestamp of $PDATA/persistence.conf has changed you need to reboot!
+#	    zenity --question --title="Reboot now?" --width=480 \
+#		--text="Reboot is recommended. The setup will continue from this point after the reboot. Would you like to reboot now?"
+#	    if [ $? -eq 0 ];then
+#		reboot &
+#		exit 0
 #	    fi
-#	done
-#	if [ "$MDIRS" != "" ];then
-#	    zenity --info --title="Restore Recommended." --width=480 \
-#		--text="The following elements are missing from your configuration: \n${MDIRS}\nIt is strongly recommend that you restore from backup and then reboot the computer." \
-#		--timeout=30
-#	fi
+#	    zenity --question --width=480 --title="Final Answer?" \
+#		--text="Warning: Skippipng Reboot is not recommended! Reboot NOW? click "No" to proceed at your own risk." 
+#	    if [ $? -eq 0 ];then
+#		reboot &
+#		exit 0
+#	    fi
+	# 
+	# After reboot: user will not want to set persistence 
+	# OR won't change anything they can continue
+
+	# now that persistence is setup and locked it; user can attempt a restore.
+	# doing a restore before persistence is setup is useless. 
+	# 
 #
-#	# an upgrade might be more approp here than a data-recovery; 
 #	zenity --question --width=480 \
 #		--title="Restore user-data?" \
 #		--text="Would you like to restore data from a previous backup?"
 #		--timeout=30
 #	if [ $? -ne 0 ];then
 #	    $CODEDIR/restore.bash
-#	    # after the restore, a reboot might be needed... 
 #	else
-#	    zenity --info --title="No restore." --text="No data was restored."
-#	fi
-#	if [ "$MDIRS" != "" ];then
-#	    zenity --question --title="Reboot now?" --text="Reboot is recommended, now; reboot?"
-#	    if [ $? -eq 0 ];then
-#		reboot &
-#		exit 0
-#	    fi
-#	    zenity --info --text="No Reboot" --title="Reboot skipped." --timeout=5
+#	    zenity --info --title="No restore." --text="No data was restored." --width=480
 #	fi
 #
 #	
-	STEP=3
-	echo $STEP > ${STEPFILE}
+	STEP=3 echo $STEP > ${STEPFILE}
     fi
-    # Once persistence is fixed it's time to make a duplicate drive!
+    #
+    # Once persistence is fully setup, it's time to make a duplicate drive!
+    #
     if [ "$STEP" -eq "3" ]; then
-	zenity --question --width=480 --title="Create Fail-safe" \
-		--text="It is STRONGLY recommend you create a fail-safe drive NOW, in case your primary drive gets lost or damaged!\nWould you like to create your fail-safe drive now?"
+	zenity --question --width=480 --title="Create Fail-safe Duplicate" \
+		--text="It is STRONGLY recommend you create a fail-safe drive NOW, in case your primary drive gets stolen, lost or damaged!\nWould you like to create your fail-safe drive now?"
 	if [ $? -eq 0 ];then
+	    # optimisticly set STEP to 4, so from the duplicated drive it We do not attempt to duplicate again!!
+	    STEP=4 echo $STEP > ${STEPFILE}
 	    ${CODEDIR}/duplicate.bash
-	    STEP=4
-	    echo $STEP > ${STEPFILE}
 	else
-	   zenity --info --text="...don't put it off too long." --title="living dangerously..." --timeout=10
+	   zenity --info --text="...don't put it off too long." --title="living dangerously?" --timeout=10 --width=480
 	fi
     fi
 
     #
     # Ok, now we can log the run-time version and avoid the setup in the future...
     #
-    if [ "$STEP" -eq "4" -o "$STEP" -eq "3" ]; then
-	zenity --info --text="Setup is complete." --title="Setup Complete." --timeout=30
-	rm ${STEPFILE}
+    if [ "$STEP" -eq "4" ]; then
+	zenity --info --text="Setup is complete." --title="Setup Complete." --timeout=30 --width=480
+	rm -f ${STEPFILE}
+	echo ${RUN_V} >${LASTV}
     fi
-    echo ${RUN_V} >${LASTV}
 fi
 
 #
