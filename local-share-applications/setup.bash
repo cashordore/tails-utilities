@@ -75,11 +75,11 @@ CODE_V=${CODE_V:-0.0}
 # if we are here, it means we've successfully setup "local" persistence, including the reboot
 # so we can install the code!
 #
-if [ ! -f ${PCONF} -o 0 -eq ${LC} -o ${RUN_V} -ne ${LAST_V} ];then
+if [ ! -f ${PCONF} -o 0 -eq ${LC} -o ${RUN_V} != ${LAST_V} ];then
     #
     # OK, if we ain't got no pconf, we can just go and get us one!
     #
-    zentiy --question --title="Install?" --width="480" \
+    zenity --question --title="Install?" --width="480" \
 	--text="You are running version $RUN_V of Tails, but setup was last on version $LAST_V.\n\nClick Yes to download and install the latest update." 
     if [ $? -ne 0 ];then
 	echo "Ok, maybe next time."
