@@ -258,7 +258,7 @@ if [ ! -f  "${LAST_VFILE}" ];then
 	    else
 		zenity --info --text="Passphrase change Aborted! (what were you thinking!)" --title="Abort" --timeout=10 --width=480
 		rm -f $CPFF $NPFF
-		exit 1
+		#exit 1
 	    fi
 	    # cleanup files..
 	    rm -f $CPFF $NPFF
@@ -266,7 +266,8 @@ if [ ! -f  "${LAST_VFILE}" ];then
 	    break;
 	done
 
-	STEP=2 echo $STEP > ${STEPFILE};
+	STEP=2
+	echo $STEP > ${STEPFILE};
     fi
 
 
@@ -283,7 +284,8 @@ if [ ! -f  "${LAST_VFILE}" ];then
 #	fi
 #
 #	
-	STEP=3 echo $STEP > ${STEPFILE}
+	STEP=3
+	echo $STEP > ${STEPFILE}
     fi
     #
     # Once persistence is fully setup, it's time to make a duplicate drive!
