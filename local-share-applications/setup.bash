@@ -7,9 +7,9 @@
 # only root can run 
 #
 if [ `whoami` != "root" ];then
-    zenity --title="$P: Insufficient Permission" \
+    zenity --title="Insufficient Permission" \
 	--info --width=480 \
-	--text="Only root can run this command; aborting." \
+	--text="Only root can run this command; Aborting." \
 	--timeout=5 2>/dev/null
     exit 1
 fi
@@ -21,57 +21,98 @@ PDATA=/live/persistence/TailsData_unlocked
 PERSISTENT=${PDATA}/Persistent
 PLOCAL=${PDATA}/local
 STEPFILE=${PLOCAL}/.setupstep
-LASTV=${PLOCAL}/.last_v
+LAST_VFILE=${PLOCAL}/.last_v
 CPFF=${PLOCAL}/.cpf
 NPFF=${PLOCAL}/.npf
 
-if [ ! -d ${PLOCAL} ];then
-    zenity --title="$P: Unexpected error: missing local folder." \
-	--text="$P: Unexpected error: ${PLOCAL} missing. You may need to reboot, Aborting..." \
-	--info --width=480 2>/dev/null
-    exit 1
-fi
-
-if [ ! -f ${PCONF} ];then
-    zenity --title="missing $PCONF." \
-	--info --width=480 \
-	--text="$P: missing ${PCONF} file. Aborting..." \
-	--timeout=5 2>/dev/null 
-    exit 1
-fi
-
-# check compatibility..
 #
+# confirm that custom local persistence has been setup
+#	if super paranoid, check the i-node numbers (ls -i) for ~amnesia/.local and $PDATA/local match
+#	for now, if $PLOCAL exists, we can assume the configuration was set and a reboot has occured.
+#
+if [ ! -d ${PLOCAL} ];then
+    # $PLOCAL gets created at boot-up when the persistence.conf file is read. 
+    if [ 0 -eq `grep -c 'source=local' ${PDATA}/persistence.conf` ];then
+	# PLOCAL is there, but no local configuraiton
+	zenity --question --title="Local Persistence"  --width=480 \
+		--text="You are missing the custom setting for \"local\" persistence; Would you like to add it now?"
+	if [ $? -ne 0 ];then
+	    echo "done." 
+	    exit 1
+	fi
+
+	# ok, need to add entry, but backup the file first.
+	cp ${PDATA}/persistence.conf ${PDATA}/persistence.conf.$$.bak
+	echo "/home/amnesia/.local	source=local" >>  ${PDATA}/persistence.conf 
+
+    fi
+    zenity --question --title="Reboot Needed" --width=480 \
+	    --text="You must reboot to complete the setup of \"local\" persistence.\n\nClick Yes to Reboot immediately."
+    if [ $? -eq 0 ];then
+	reboot &
+    fi
+    echo "done." 
+    exit 0
+fi
+
 RUN_V="`tails-version|head -1|cut -d' ' -f1`"
-if [ 0 -eq `grep -c "^V ${RUN_V}" ${PCONF}` ];then
+RUN_V=${RUN_V:-0.0}
+    # in case of error
+
+LAST_V="`cat $LAST_VFILE 2>/dev/null`"
+LAST_V=${LAST_V:-0.0}
+
+LC=`grep -c "^V ${RUN_V}" ${PCONF} 2>/dev/null`
+LC=${LC:-0}
+    # in case PCONF does not exist.
+# 
+# Get current code version 
+CODE_V=`grep "^V " ${PCONF}|head -1|cut -d' ' -f2 2>/dev/null`
+CODE_V=${CODE_V:-0.0}
+    # in case PCONF does not exist
+
+#
+# if we are here, it means we've successfully setup "local" persistence, including the reboot
+# so we can install the code!
+#
+if [ ! -f ${PCONF} -o 0 -eq ${LC} -o ${RUN_V} -ne ${LAST_V} ];then
     #
-    # This would likely happen after user does a Tails in-place upgrade.
-    # or a "code restore" of older (aka wrong) version (yes, it's possible)
-    # either way might want to check for a compatible version of the code...
-	# no need to keep this, just need it for install...
-	# at some point add a branch for based on $RUN_V
-	# for now, just the latest version... 
-	# cd /tmp
-	# git clone https://github.com/cashordore/tails-utilities
-	# cd /tmp/tails-utilities/local-share-applications
-	# [ -f ./upgrade.bash ] && ./upgrade.bash
-	# basically upgrade.bash should copy files from current folder into correct place
+    # OK, if we ain't got no pconf, we can just go and get us one!
     #
-    VZ=`echo \`grep "^V " $PCONF | cut -d' ' -f2\``
-    zenity --question --title="Unsupported version detected." --width=480 \
-	--text="Tails $RUN_V is currently running; however, the supported versions are: $VZ. Would you like to continue anyway?"
-    if [ $? -ne 0 ]; then
-	zenity --width=480 --info --title="aborting..." --text="aborting..." --timeout=5 --info 2>/dev/null
-	exit 1
+    zentiy --question --title="Install?" --width="480" \
+	--text="You are running version $RUN_V of Tails, but setup was last on version $LAST_V.\n\nClick Yes to download and install the latest update." 
+    if [ $? -ne 0 ];then
+	echo "Ok, maybe next time."
+	# exit 0
+    else
+	cd ~amnesia/Downloads
+	mkdir code-$$
+	chmod 777 code-$$
+	cd ./code-$$
+	su amnesia -c "git clone https://github.com/cashordore/tails-utilities"
+	if [ $? -eq 0 ];then
+	    cd ./tails-utilities/local-share-applications
+	    su amnesia -c "cp *.bash *.desktop *.conf ~amnesia/.local/share/applications"
+		# BTW, since ~amnesia/Downloads isn't persistent,
+		# everything under code-$$ will disappear at next reboot
+
+	    # now for the fun part... let's launch the new version!!!
+	    zentiy --question --title="Restart Setup" --width="480" --text="Click Yes to restart Upgraded setup." 
+	    if [ $? -eq 0 ];then
+		exec ~amnesia/.local/share/applications/setup.bash
+	    fi
+	    echo "Warning: did not choose to run upgraded setup."
+	else
+	    # network ok? other errors?
+	    zenity --info --title="Error Detected" --width=480 \
+		--text="Check for errors and try running $P again.\n\nFYI: a network connection is required to install the software."
+	    exit 1
+	fi
     fi
 fi
 
-# 
-# Get current code version 
-CODE_V=`grep "^V " ${PCONF}|head -1|cut -d' ' -f2`
-
 # Get last Boot Tails Version
-if [ ! -f  "${LASTV}" ];then
+if [ ! -f  "${LAST_VFILE}" ];then
     #
     # First time setup!
     #
@@ -104,7 +145,7 @@ if [ ! -f  "${LASTV}" ];then
 	    fi
 	done
 	if [ "$L_DEV" = "" ];then
-	    zenity --info --text="$P: Could not find the LUKS partition, aborting." --title="aborting.." --timeout=30
+	    zenity --info --text="$P: Could not find the LUKS partition, aborting." --title="Abort" --timeout=30
 	    exit 1
 	fi
 	#
@@ -119,8 +160,8 @@ if [ ! -f  "${LASTV}" ];then
 		$L_DEV 2>/dev/null`
 
 	if [ $? -ne 0 ];then
-	    zenity --title="Aborting..." \
-		--info --text="Change Password Aborted." --timeout=5 2>/dev/null
+	    zenity --title="Abort" \
+		--info --text="Change Password Aborted." --timeout=15 2>/dev/null
 	    exit 1
 	fi
 
@@ -133,7 +174,8 @@ if [ ! -f  "${LASTV}" ];then
 		--add-password="New Passphrase" \
 		--add-password="Repeat New Passphrase" `
 	    if [ $? -ne 0 ];then
-		echo "aborting..."
+		zenity --title="Abort" \
+		    --info --text="Change Password Aborted." --timeout=15 2>/dev/null
 		exit 1
 	    fi
 
@@ -144,7 +186,8 @@ if [ ! -f  "${LASTV}" ];then
 			--title="Invalid character" \
 			--text="The '|' character is not allowed, Click Yes to Try again." 
 		if [ $? -ne 0 ];then
-		    echo "aborting..."
+		    zenity --title="Abort" \
+			--info --text="Change Password Aborted." --timeout=15 2>/dev/null
 		    exit 1
 		fi
 		continue
@@ -163,10 +206,11 @@ if [ ! -f  "${LASTV}" ];then
 	    # ensure new passphrases match...
 	    if [ "$NPF1" != "$NPF2" -o "$CPF" == "" -o "$NPF1" == "" -o "$NPF2" == "" ]; then
 		zenity --question --width=480 \
-			--title="Passphrase errors" \
+			--title="Passphrase Errors" \
 			--text="The new Passphrases did not match or a field was blank; do you want to try again?" 
 		if [ $? -ne 0 ];then
-		    echo "aborting..."
+		    zenity --title="Abort" \
+			--info --text="Change Password Aborted." --timeout=15 2>/dev/null
 		    exit 1
 		fi
 		# loop back and try again
@@ -181,7 +225,8 @@ if [ ! -f  "${LASTV}" ];then
 			--text="The Current Passphrase was not correct, do you want to try again?"
 		if [ $? -ne 0 ];then
 		    rm -f $CPFF
-		    echo "aborting..."
+		    zenity --title="Abort" \
+			--info --text="Change Password Aborted." --timeout=15 2>/dev/null
 		    exit 1
 		fi
 		continue
@@ -198,19 +243,20 @@ if [ ! -f  "${LASTV}" ];then
 		if [ $? -ne 0 ];then
 		    rm -f $CPFF $NPFF
 		    zenity --question --width=480 \
-			--title="Passphrase change failed!" \
+			--title="Passphrase Change Failed!" \
 			--text="Error: failed passphrase change on $LUSB, `cat /tmp/${P}.err`\nDo you want to try again?"
 		    if [ $? -ne 0 ];then
-			echo "aborting..."
+			zenity --title="Abort" \
+			    --info --text="Change Password Aborted." --timeout=15 2>/dev/null
 			exit 1
 		    fi
 		    continue
 		else
-		    zenity --info --title="Passphrase change Succeeded!" --width=480 \
+		    zenity --info --title="Passphrase Change Succeeded!" --width=480 \
 			--text="Your Encryption Passphrase has been successfully changed."
 		fi
 	    else
-		zenity --info --text="Passphrase change Aborted! (what were you thinking!)" --title="aborting" --timeout=10 --width=480
+		zenity --info --text="Passphrase change Aborted! (what were you thinking!)" --title="Abort" --timeout=10 --width=480
 		rm -f $CPFF $NPFF
 		exit 1
 	    fi
@@ -225,38 +271,15 @@ if [ ! -f  "${LASTV}" ];then
 
 
     if [ "$STEP" -eq "2" ]; then
-	# ask if user "wants" to setup "persistence" 
-	# remember timestamp of $PDATA/persistence.conf
-	# tails-persistence-setup
-	# if timestamp of $PDATA/persistence.conf has changed you need to reboot!
-#	    zenity --question --title="Reboot now?" --width=480 \
-#		--text="Reboot is recommended. The setup will continue from this point after the reboot. Would you like to reboot now?"
-#	    if [ $? -eq 0 ];then
-#		reboot &
-#		exit 0
-#	    fi
-#	    zenity --question --width=480 --title="Final Answer?" \
-#		--text="Warning: Skippipng Reboot is not recommended! Reboot NOW? click "No" to proceed at your own risk." 
-#	    if [ $? -eq 0 ];then
-#		reboot &
-#		exit 0
-#	    fi
-	# 
-	# After reboot: user will not want to set persistence 
-	# OR won't change anything they can continue
-
-	# now that persistence is setup and locked it; user can attempt a restore.
-	# doing a restore before persistence is setup is useless. 
-	# 
 #
 #	zenity --question --width=480 \
-#		--title="Restore user-data?" \
+#		--title="Restore User-Data?" \
 #		--text="Would you like to restore data from a previous backup?"
 #		--timeout=30
 #	if [ $? -ne 0 ];then
 #	    $CODEDIR/restore.bash
 #	else
-#	    zenity --info --title="No restore." --text="No data was restored." --width=480
+#	    zenity --info --title="No Restore" --text="No data was restored." --width=480
 #	fi
 #
 #	
@@ -266,24 +289,18 @@ if [ ! -f  "${LASTV}" ];then
     # Once persistence is fully setup, it's time to make a duplicate drive!
     #
     if [ "$STEP" -eq "3" ]; then
-	zenity --question --width=480 --title="Create Fail-safe Duplicate" \
-		--text="It is STRONGLY recommend you create a fail-safe drive NOW, in case your primary drive gets stolen, lost or damaged!\nWould you like to create your fail-safe drive now?"
-	if [ $? -eq 0 ];then
-	    # optimisticly set STEP to 4, so from the duplicated drive it We do not attempt to duplicate again!!
-	    STEP=4 echo $STEP > ${STEPFILE}
-	    ${CODEDIR}/duplicate.bash
-	else
-	   zenity --info --text="...don't put it off too long." --title="living dangerously?" --timeout=10 --width=480
-	fi
-    fi
-
-    #
-    # Ok, now we can log the run-time version and avoid the setup in the future...
-    #
-    if [ "$STEP" -eq "4" ]; then
-	zenity --info --text="Setup is complete." --title="Setup Complete." --timeout=30 --width=480
+	echo ${RUN_V} >${LAST_VFILE}
 	rm -f ${STEPFILE}
-	echo ${RUN_V} >${LASTV}
+	zenity --info --text="Congratulations, setup for Tails $RUN_V is complete." --title="Setup Complete." --width=480
+
+	zenity --question --width=480 --title="Create Fail-safe Duplicate" \
+		--text="It is STRONGLY recommend you create a fail-safe backup drive NOW in case your primary drive is stolen, lost or damaged!\n\nWould you like to create your fail-safe drive now?"
+	if [ $? -eq 0 ];then
+	    exec ${CODEDIR}/duplicate.bash
+	    # never returns from exec ... bye, bye!
+	else
+	   zenity --info --text="...don't put it off too long." --title="Living Dangerously?" --timeout=10 --width=480
+	fi
     fi
 fi
 
