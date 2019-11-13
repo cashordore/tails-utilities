@@ -75,7 +75,7 @@ CODE_V=${CODE_V:-0.0}
 # if we are here, it means we've successfully setup "local" persistence, including the reboot
 # so we can install the code!
 #
-if [ ! -f ${PCONF} -o 0 -eq ${LC} -o ${RUN_V} -ne ${LAST_V} ];then
+if [ ! -f ${PCONF} -o 0 -eq ${LC} -o ${RUN_V} != ${LAST_V} ];then
     #
     # OK, if we ain't got no pconf, we can just go and get us one!
     #
