@@ -97,7 +97,7 @@ if [ ! -f ${PCONF} -o 0 -eq ${LC} -o ${RUN_V} != ${LAST_V} ];then
 		# everything under code-$$ will disappear at next reboot
 
 	    # now for the fun part... let's launch the new version!!!
-	    zentiy --question --title="Restart Setup" --width="480" --text="Click Yes to restart Upgraded setup." 
+	    zenity --question --title="Restart Setup" --width="480" --text="Click Yes to restart Upgraded setup." 
 	    if [ $? -eq 0 ];then
 		exec ~amnesia/.local/share/applications/setup.bash
 	    fi
