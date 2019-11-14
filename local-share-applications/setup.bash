@@ -1,7 +1,12 @@
 #!/bin/bash
+
 #
 # setup runs upon boot when amnesia signs in.
+# 
+# might want to not requre root for the autostart execution
+# give the backup reminder, and check status, re-launch under sudo if necessary
 #
+
 
 #
 # only root can run 
@@ -20,34 +25,61 @@ PCONF="`echo ${CODEDIR}/${P}|sed 's/bash/conf/g'`"
 PDATA=/live/persistence/TailsData_unlocked
 PERSISTENT=${PDATA}/Persistent
 PLOCAL=${PDATA}/local
+DOTFILES=${PDATA}/dotfiles
 STEPFILE=${PLOCAL}/.setupstep
 LAST_VFILE=${PLOCAL}/.last_v
 CPFF=${PLOCAL}/.cpf
 NPFF=${PLOCAL}/.npf
 
+RUN_V="`tails-version|head -1|cut -d' ' -f1`"
+RUN_V=${RUN_V:-0.0}
+LAST_V="`cat $LAST_VFILE 2>/dev/null`"
+LAST_V=${LAST_V:-0.0}
+LC=`grep -c "^V ${RUN_V}" ${PCONF} 2>/dev/null`
+LC=${LC:-0}
+
+# check backup logs for last backup
+#BACKUP_AGE="00"
 #
-# confirm that custom local persistence has been setup
+# 
+# Welcome message 
+#
+#zenity --width=480 --info \
+#    --title="Setup Wizard" \
+#    --text="Welcome to the setup wizard.\n\nClick OK, and we'll check your Persistence and software settings."
+#
+
+# check to see if we are up-to-date
+# check backup log, issue warning
+
+#
+# confirm that persistence has been setup
 #	if super paranoid, check the i-node numbers (ls -i) for ~amnesia/.local and $PDATA/local match
-#	for now, if $PLOCAL exists, we can assume the configuration was set and a reboot has occured.
 #
-if [ ! -d ${PLOCAL} ];then
-    # $PLOCAL gets created at boot-up when the persistence.conf file is read. 
-    if [ 0 -eq `grep -c 'source=local' ${PDATA}/persistence.conf` ];then
-	# PLOCAL is there, but no local configuraiton
-	zenity --question --title="Local Persistence"  --width=480 \
-		--text="You are missing the custom setting for \"local\" persistence; Would you like to add it now?"
-	if [ $? -ne 0 ];then
-	    echo "done." 
-	    exit 1
-	fi
+LP=`grep -c 'source=local' ${PDATA}/persistence.conf`
+LP=${LP:-0}
+DP=`grep -c 'source=dotfiles' ${PDATA}/persistence.conf`
+DP=${DP:-0}
+PP=`grep -c 'source=Persistent' ${PDATA}/persistence.conf`
+PP=${PP:-0}
 
-	# ok, need to add entry, but backup the file first.
-	cp ${PDATA}/persistence.conf ${PDATA}/persistence.conf.$$.bak
-	echo "/home/amnesia/.local	source=local" >>  ${PDATA}/persistence.conf 
-
+if [ $LP -eq 0 -o $DP -eq 0 -o $PP -eq 0 ];then
+    # one of the Persistent dirs is missing
+    zenity --question --width=480 --title="Persistence Update Needed" \
+	--text="Welcome to the Setup Wizard.\n\nYour Persistence settings need to be updated. Click Yes to update your required settings or No to exit."
+    if [ $? -ne 0 ];then
+	echo "Cannot continue without Persistence." 
+	exit 1
     fi
+
+    # ok, backup the original file first.
+    cp ${PDATA}/persistence.conf ${PDATA}/persistence.conf.$$.bak
+    [ 0 -eq $PP ] && echo "/home/amnesia/Persistent	source=Persistent" >> ${PDATA}/persistence.conf 
+    [ 0 -eq $LP ] && echo "/home/amnesia/.local	source=local" >> ${PDATA}/persistence.conf 
+    [ 0 -eq $DP ] && echo "/home/amnesia/	source=dotfiles,link" >> ${PDATA}/persistence.conf 
+
     zenity --question --title="Reboot Needed" --width=480 \
-	    --text="You must reboot to complete the setup of \"local\" persistence.\n\nClick Yes to Reboot immediately."
+	    --text="Persistence setup complete, you must reboot to activate the changes.\n\nPlease exit any running programs and click Yes to Reboot immediately, or click No to reboot later.\n\nNote: you must re-run \"Setup\" again after reboot."
     if [ $? -eq 0 ];then
 	reboot &
     fi
@@ -55,32 +87,23 @@ if [ ! -d ${PLOCAL} ];then
     exit 0
 fi
 
-RUN_V="`tails-version|head -1|cut -d' ' -f1`"
-RUN_V=${RUN_V:-0.0}
-    # in case of error
-
-LAST_V="`cat $LAST_VFILE 2>/dev/null`"
-LAST_V=${LAST_V:-0.0}
-
-LC=`grep -c "^V ${RUN_V}" ${PCONF} 2>/dev/null`
-LC=${LC:-0}
-    # in case PCONF does not exist.
 # 
 # Get current code version 
+#
 CODE_V=`grep "^V " ${PCONF}|head -1|cut -d' ' -f2 2>/dev/null`
 CODE_V=${CODE_V:-0.0}
     # in case PCONF does not exist
 
 #
-# if we are here, it means we've successfully setup "local" persistence, including the reboot
+# if we are here, it means we've successfully setup persistence, including the reboot
 # so we can install the code!
 #
 if [ ! -f ${PCONF} -o 0 -eq ${LC} -o ${RUN_V} != ${LAST_V} ];then
     #
     # OK, if we ain't got no pconf, we can just go and get us one!
     #
-    zenity --question --title="Install?" --width="480" \
-	--text="You are running version $RUN_V of Tails, but setup was last on version $LAST_V.\n\nClick Yes to download and install the latest update." 
+    zenity --question --title="Software Update?" --width="480" \
+	--text="Software update available.\n\nNOTE: a network connection is required to download the software update. Please connect to the Internet.\n\nThen click Yes to download and update the software or click No to exit." 
     if [ $? -ne 0 ];then
 	echo "Ok, maybe next time."
 	# exit 0
@@ -95,6 +118,9 @@ if [ ! -f ${PCONF} -o 0 -eq ${LC} -o ${RUN_V} != ${LAST_V} ];then
 	    su amnesia -c "cp *.bash *.desktop *.conf ~amnesia/.local/share/applications"
 		# BTW, since ~amnesia/Downloads isn't persistent,
 		# everything under code-$$ will disappear at next reboot
+	    if [ -d "$PDATA/dotfiles/.config/autostart" ]; then
+		su amnesia -c "mkdir -p $PDATA/dotfiles/.config/autostart;cp Setup.desktop $PDATA/dotfiles/.config/autostart"
+	    fi
 
 	    # now for the fun part... let's launch the new version!!!
 	    zenity --question --title="Restart Setup" --width="480" --text="Click Yes to restart Upgraded setup." 
@@ -111,7 +137,12 @@ if [ ! -f ${PCONF} -o 0 -eq ${LC} -o ${RUN_V} != ${LAST_V} ];then
     fi
 fi
 
+#
+# At this point: a) persistence is setup and b) software has been updated! 
+# hurray!! great job... now we can complete the first-time setup
+#
 # Get last Boot Tails Version
+# 
 if [ ! -f  "${LAST_VFILE}" ];then
     #
     # First time setup!
@@ -274,9 +305,8 @@ if [ ! -f  "${LAST_VFILE}" ];then
     if [ "$STEP" -eq "2" ]; then
 #
 #	zenity --question --width=480 \
-#		--title="Restore User-Data?" \
+#		--title="Restore User-Data" \
 #		--text="Would you like to restore data from a previous backup?"
-#		--timeout=30
 #	if [ $? -ne 0 ];then
 #	    $CODEDIR/restore.bash
 #	else
@@ -292,6 +322,7 @@ if [ ! -f  "${LAST_VFILE}" ];then
     #
     if [ "$STEP" -eq "3" ]; then
 	echo ${RUN_V} >${LAST_VFILE}
+	chmod 644 ${LAST_VFILE}
 	rm -f ${STEPFILE}
 	zenity --info --text="Congratulations, setup for Tails $RUN_V is complete." --title="Setup Complete." --width=480
 
@@ -301,12 +332,10 @@ if [ ! -f  "${LAST_VFILE}" ];then
 	    exec ${CODEDIR}/duplicate.bash
 	    # never returns from exec ... bye, bye!
 	else
-	   zenity --info --text="...don't put it off too long." --title="Living Dangerously?" --timeout=10 --width=480
+	   zenity --info --title="Living Dangerously?" --width=480 \
+		--text="Please use \"Applications->Accessories->Duplicate Tails USB Drive\" regularly to backup all your valuable data!"
 	fi
     fi
 fi
 
-#
-# add backup reminder
-#
 
