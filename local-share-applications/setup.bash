@@ -1,12 +1,22 @@
 #!/bin/bash
 
 #
-# setup runs upon boot when amnesia signs in.
-# 
 # might want to not requre root for the autostart execution
 # give the backup reminder, and check status, re-launch under sudo if necessary
 #
-
+PDATA=/live/persistence/TailsData_unlocked
+PLOCAL=${PDATA}/local
+LAST_VFILE=${PLOCAL}/.last_v
+if [ "$1" != "skip" ];then
+   if [ -f  "${LAST_VFILE}" ];then
+       zenity --info --title="Backup Reminder" --width=480 \
+	--text="It has been NN days since your last backup."
+       exit 0
+   else
+      sudo $0 skip
+      exit 0
+   fi
+fi
 
 #
 # only root can run 
@@ -22,12 +32,9 @@ fi
 P=`basename $0`
 CODEDIR=`dirname $0`
 PCONF="`echo ${CODEDIR}/${P}|sed 's/bash/conf/g'`"
-PDATA=/live/persistence/TailsData_unlocked
 PERSISTENT=${PDATA}/Persistent
-PLOCAL=${PDATA}/local
 DOTFILES=${PDATA}/dotfiles
 STEPFILE=${PLOCAL}/.setupstep
-LAST_VFILE=${PLOCAL}/.last_v
 CPFF=${PLOCAL}/.cpf
 NPFF=${PLOCAL}/.npf
 
