@@ -160,10 +160,11 @@ if [ ! -f  "${LAST_VFILE}" ];then
 	# 
 	# Welcome message 
 	#
-	zenity --width=480 --info --title="First-time Setup" \
+	zenity --width=480 --question --title="First-time Setup" \
 		--text="Welcome to the First-time setup wizard.\n\nImportant note: You are about to set the passphrase for your encrypted storage. Once the passpharse is changed it cannot be recovered; so please be careful. Write it down and lock it in a safe.\n\nYou will also have the opportunity to create a fail-safe, duplicate copy of this USB drive in case this device is stolen, lost or damaged; and if stolen, I hope your passpharse was 20+ characters!\n\nGood luck and let's go!"
 
 	
+if [ $? -eq 0 ]; then
 	# 
 	# identify LUKS partitions
 	#
@@ -303,6 +304,8 @@ if [ ! -f  "${LAST_VFILE}" ];then
 	    # ok we done. Phew!
 	    break;
 	done
+
+fi
 
 	STEP=2
 	echo $STEP > ${STEPFILE};
