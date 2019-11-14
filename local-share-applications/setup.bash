@@ -9,9 +9,16 @@ PLOCAL=${PDATA}/local
 LAST_VFILE=${PLOCAL}/.last_v
 if [ "$1" != "skip" ];then
    if [ -f  "${LAST_VFILE}" ];then
-       zenity --info --title="Backup Reminder" --width=480 \
-	--text="It has been NN days since your last backup."
-       exit 0
+	# check backup logs for last backup
+	#
+       zenity --question --title="Backup Reminder" --width=480 \
+	--text="It has been NN days since your last backup.\n\nContinue?"
+	if [ $? -ne 0 ];then
+	    exit 0
+	else
+	    sudo $0 skip
+	    exit 0
+	fi
    else
       sudo $0 skip
       exit 0
@@ -45,13 +52,10 @@ LAST_V=${LAST_V:-0.0}
 LC=`grep -c "^V ${RUN_V}" ${PCONF} 2>/dev/null`
 LC=${LC:-0}
 
-# check backup logs for last backup
-#BACKUP_AGE="00"
-#
 # 
 # Welcome message 
 #
-#zenity --width=480 --info \
+#zenity --width=480 --question  \
 #    --title="Setup Wizard" \
 #    --text="Welcome to the setup wizard.\n\nClick OK, and we'll check your Persistence and software settings."
 #
@@ -105,12 +109,15 @@ CODE_V=${CODE_V:-0.0}
 # if we are here, it means we've successfully setup persistence, including the reboot
 # so we can install the code!
 #
-if [ ! -f ${PCONF} -o 0 -eq ${LC} -o ${RUN_V} != ${LAST_V} ];then
+zenity --question --title="Software Update" --width="480" \
+    --text="Would you like to download and apply the latest software update?\n\nClick Yes to perform an update." 
+
+if [ $? -eq 0 -o ! -f ${PCONF} -o 0 -eq ${LC} -o ${RUN_V} != ${LAST_V} ];then
     #
     # OK, if we ain't got no pconf, we can just go and get us one!
     #
-    zenity --question --title="Software Update?" --width="480" \
-	--text="Software update available.\n\nNOTE: a network connection is required to download the software update. Please connect to the Internet.\n\nThen click Yes to download and update the software or click No to exit." 
+    zenity --question --title="Confirm Software Update" --width="480" \
+	--text="Click Yes to Confirm and apply updated software.\n\nNOTE: a network connection is required to download the software. Please connect to the Internet and then click Yes to download and update the software. Click No to skip." 
     if [ $? -ne 0 ];then
 	echo "Ok, maybe next time."
 	# exit 0
