@@ -9,16 +9,16 @@ PLOCAL=${PDATA}/local
 LAST_VFILE=${PLOCAL}/.last_v
 if [ "$1" != "skip" ];then
    if [ -f  "${LAST_VFILE}" ];then
-	# check backup logs for last backup
+	# you can only get here if previous setup was completed... 
+	# ok, so now check backup logs for last backup
 	#
        zenity --question --title="Backup Reminder" --width=480 \
-	--text="It has been NN days since your last backup.\n\nContinue?"
+	--text="It has been NN days since your last backup.\n\nWould you like to re-run Setup?\nNOTE: requires the Administration Password."
 	if [ $? -ne 0 ];then
 	    exit 0
-	else
-	    sudo $0 skip
-	    exit 0
 	fi
+        sudo $0 skip
+        exit 0
    else
       sudo $0 skip
       exit 0
@@ -130,11 +130,8 @@ if [ $? -eq 0 -o ! -f ${PCONF} -o 0 -eq ${LC} -o ${RUN_V} != ${LAST_V} ];then
 	if [ $? -eq 0 ];then
 	    cd ./tails-utilities/local-share-applications
 	    su amnesia -c "cp *.bash *.desktop *.conf ~amnesia/.local/share/applications"
-		# BTW, since ~amnesia/Downloads isn't persistent,
-		# everything under code-$$ will disappear at next reboot
-	    if [ -d "$PDATA/dotfiles/.config/autostart" ]; then
-		su amnesia -c "mkdir -p $PDATA/dotfiles/.config/autostart;cp Setup.desktop $PDATA/dotfiles/.config/autostart"
-	    fi
+	    [ ! -d $PDATA/dotfiles/.config/autostart ] && su amnesia -c "mkdir -p $PDATA/dotfiles/.config/autostart"
+	    su amnesia -c "cp Setup.desktop $PDATA/dotfiles/.config/autostart"
 
 	    # now for the fun part... let's launch the new version!!!
 	    zenity --question --title="Restart Setup" --width="480" --text="Click Yes to restart Upgraded setup." 
