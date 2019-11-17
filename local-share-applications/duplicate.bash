@@ -216,7 +216,7 @@ fi
 ###
 ### Log the Results 
 ###
-echo "DUP:$DDRESULT:`date '+%y%m%d':$result" >> ~amnesia/.local/.dup.log
+echo "DUP:$DDRESULT:`date '+%y%m%d':$result`" >> ~amnesia/.local/.dup.log
 
 # let the user know, too
 zenity --title="Duplication Complete" --info --width=480 \
