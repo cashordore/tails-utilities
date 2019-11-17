@@ -4,6 +4,7 @@ I_DEV=""
 O_DEV=""
 OUSB=""
 IUSB=""
+DUPLOG="~amnesia/.local/.dup.log"
 
 #
 # only root can run 
@@ -191,8 +192,7 @@ fi
 ###
 ### Well, well, well. OK, HERE WE GO! Let the backup begin!!!
 ###
-### Log the start
-###
+
 sync;
 s=`date`
 (sleep 3;eval ${CMD}) |
@@ -212,10 +212,11 @@ if [ ${DDRESULT} -eq 0 ];then
 else
     result="Aborted, $OUSB very likely corrupted."
 fi
-# report the resulrts...
+
 ###
 ### Log the Results 
 ###
+echo "DUP:$DDRESULT:`date '+%y%m%d':$result" >> ~amnesia/.local/.dup.log
 
 # let the user know, too
 zenity --title="Duplication Complete" --info --width=480 \

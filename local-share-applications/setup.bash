@@ -12,8 +12,15 @@ if [ "$1" != "skip" ];then
 	# you can only get here if previous setup was completed... 
 	# ok, so now check backup logs for last backup
 	#
-       zenity --question --title="Backup Reminder" --width=480 \
-	--text="It has been NN days since your last backup.\n\nWould you like to re-run Setup?\nNOTE: requires the Administration Password."
+	DZ="NEVER"
+	if [ -f ${PLOCAL}/.dup.log ];then
+	    NOW=`date '+%y%m%d'`
+	    THEN=`tail -1 ${PLOCAL}/.dup.log|cut -d: -f3`
+	    BSTATUS=`tail -1 ${PLOCAL}/.dup.log|cut -d: -f4`
+	    DZ="`echo $(( ($(date --date="$NOW" +%s) - $(date --date="$THEN" +%s) )/(60*60*24) ))` days"
+	fi
+	zenity --question --title="Backup Reminder" --width=480 \
+	    --text="It has been $DZ since your last backup $BSTATUS.\n\nClick:\n\tYes - to continue (requires Administration password)\n\tNo - to exit"
 	if [ $? -ne 0 ];then
 	    exit 0
 	fi
@@ -44,6 +51,11 @@ DOTFILES=${PDATA}/dotfiles
 STEPFILE=${PLOCAL}/.setupstep
 CPFF=${PLOCAL}/.cpf
 NPFF=${PLOCAL}/.npf
+STEP=0
+if [ "$1" == "skip" ];then
+    STEP=3
+    echo $STEP > ${STEPFILE};
+fi
 
 RUN_V="`tails-version|head -1|cut -d' ' -f1`"
 RUN_V=${RUN_V:-0.0}
@@ -154,7 +166,7 @@ fi
 #
 # Get last Boot Tails Version
 # 
-if [ ! -f  "${LAST_VFILE}" ];then
+if [ ! -f  "${LAST_VFILE}" -o "$STEP" -ne 0 ];then
     #
     # First time setup!
     #
@@ -166,7 +178,6 @@ if [ ! -f  "${LAST_VFILE}" ];then
 	#
 	zenity --width=480 --question --title="First-time Setup" \
 		--text="Welcome to the First-time setup wizard.\n\nImportant note: You are about to set the passphrase for your encrypted storage. Once the passpharse is changed it cannot be recovered; so please be careful. Write it down and lock it in a safe.\n\nYou will also have the opportunity to create a fail-safe, duplicate copy of this USB drive in case this device is stolen, lost or damaged; and if stolen, I hope your passpharse was 20+ characters!\n\nGood luck and let's go!"
-
 	
 if [ $? -eq 0 ]; then
 	# 
