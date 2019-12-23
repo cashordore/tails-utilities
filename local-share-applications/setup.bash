@@ -51,8 +51,9 @@ DOTFILES=${PDATA}/dotfiles
 STEPFILE=${PLOCAL}/.setupstep
 CPFF=${PLOCAL}/.cpf
 NPFF=${PLOCAL}/.npf
+
 STEP=0
-if [ "$1" == "skip" ];then
+if [ "$1" == "skip" -a -f "${LAST_VFILE}" ];then
     STEP=3
     echo $STEP > ${STEPFILE};
 fi
