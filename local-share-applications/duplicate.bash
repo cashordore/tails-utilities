@@ -29,7 +29,9 @@ fi
 # Find USB drives.  
 # default first one is the INPUT and the SECOND is backup
 #
-for d in `readlink -e /dev/disk/by-id/usb*0:0|sort`; do
+#for d in `readlink -e /dev/disk/by-id/usb*0:0|sort`; do
+LIST="`ls /dev/disk/by-id/*[uU][sS][bB]* /dev/disk/by-id/*[sS][Ss][dD]* |grep -v -- '-part[0-9]' 2>/dev/null`"
+for d in `readlink -e $LIST|sort`; do
     if [ "$I_DEV" = "" ];then
 	I_DEV="TRUE $d"
     else
@@ -70,7 +72,9 @@ fi
 
 ## Now, get the Output device list
 ## excluding the selected one from the target
-for d in `readlink -e /dev/disk/by-id/usb*0:0|sort`; do
+#for d in `readlink -e /dev/disk/by-id/usb*0:0|sort`; do
+LIST="`ls /dev/disk/by-id/*[uU][sS][bB]* /dev/disk/by-id/*[sS][Ss][dD]* |grep -v -- '-part[0-9]' 2>/dev/null`"
+for d in `readlink -e $LIST|sort`; do
     if [ "$d" = "$IUSB" ];then
 	: ;
     elif [ "$O_DEV" = "" ];then
